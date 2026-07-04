@@ -97,6 +97,9 @@ Frequency scaling itself is identical to stock schedutil, including the 1.25× D
 
 The effect is a governor that reacts instantly to a real load spike (via the idle-time-based hispeed reading) while smoothly handing off to PELT's steady-state behavior within a third of a second — avoiding both the lag of pure PELT and the overshoot of a naive instant-boost.
 
+Reflex Governor From `https://github.com/ramabondanp/android_kernel_common-5.10`
+
+
 ## Memory Management
 
 - MGLRU (Multi-Generational LRU)
@@ -131,6 +134,8 @@ The effect is a governor that reacts instantly to a real load spike (via the idl
 ## Big Thanks
 
 https://github.com/LoggingNewMemory/SuiKernel-Release — Tenebrion logic and SELinux rules
+
+https://github.com/ramabondanp/android_kernel_common-5.10 - Reflex Governor 
 
 ## Recommended Tools
 
