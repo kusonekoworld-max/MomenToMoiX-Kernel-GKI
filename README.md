@@ -105,7 +105,6 @@ The effect is a governor that reacts instantly to a real load spike (via the idl
 - KSM (Kernel Samepage Merging)
 - Compaction & Migration
 - Transparent Huge Pages (THP)
-- IPS (Improved Process Scheduling) for LMKD — smarter reclaim ordering and kill decisions so the low-memory killer reaps background processes more accurately, reducing unnecessary app restarts under memory pressure
 
 ## Power Management
 
