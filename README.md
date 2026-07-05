@@ -14,6 +14,7 @@
 - [SUSFS](#susfs)
 - [MomenToMoiX Driver](#momentomoix-driver)
 - [Governor Reflex](#governor-reflex)
+- [Governor Vorpal](#governor-vorpal)
 - [Memory Management](#memory-management)
 - [Power Management](#power-management)
 - [Scheduler & I/O](#scheduler--io)
@@ -31,11 +32,11 @@ A KSU addon for hiding root using kernel patches and a userspace module.
 
 ## MomenToMoiX Driver
 
-A kernel-level CPU/IO optimization driver that reacts to screen state, charging status, and thermal state, with a scaffold in place for true-suspend detection.
+A kernel-level CPU/IO optimization driver that reacts to screen state, charging status, and thermal state, with suspend-awareness and hotplug-safe QoS handling.
 
 **How it works:**
 
-- **Screen state detection:** Polls `DPMS` first, falling back to backlight brightness, at an interval of `poll_interval_ms` (default 1000 ms), starting `boot_delay_ms` (default 40 s) after boot to let the display driver finish probing.
+- **Screen state detection:** Polls `DPMS` first, falling back to backlight brightness, at an interval of `poll_interval_ms` (default 1000 ms), starting `boot_delay_ms` (default 40 s) after boot to let the display driver finish probing. Both the DPMS and backlight node are resolved from a **candidate list** at boot rather than a single hardcoded path, so the same build works across devices with different sysfs layouts without a rebuild — including `leds/lcd-backlight` panels alongside the more common `backlight` class.
 - **Screen OFF:**
   - Isolates the `system-background` and `background` cpusets to CPU 0.
   - Switches the I/O scheduler to `none` (the previously active scheduler is auto-detected and saved so it can be restored later).
@@ -43,16 +44,21 @@ A kernel-level CPU/IO optimization driver that reacts to screen state, charging 
   - Scans every available thermal zone (up to 15) and takes the **highest** reported temperature. If it's at or above `thermal_threshold_mc` (default 65 °C), a thermal hold is armed for when the screen turns back on.
 - **Screen ON:**
   - Cpusets and I/O scheduler are restored immediately.
-  - If a thermal hold was armed: the screen-off frequency bias is kept in place for `thermal_hold_ms` (default 3 s), then temperature is rechecked. Frequencies are only released once the max zone temp drops below `thermal_threshold_mc - thermal_hysteresis_mc` (default 60 °C); otherwise the hold is extended each poll cycle until it cools down.
-  - If no thermal hold was armed, CPU frequencies are restored to stock immediately.
-- **Suspend-awareness (scaffold):** A PM notifier tracks whether the device is in a true suspend (`PM_SUSPEND_PREPARE`/`PM_POST_SUSPEND`) vs. just screen-off-but-awake, but this state isn't wired into any frequency decision yet — it's reserved for a future policy.
-- **Runtime tunable:** every threshold above (`poll_interval_ms`, `boot_delay_ms`, `thermal_threshold_mc`, `thermal_hysteresis_mc`, `thermal_hold_ms`, `charging_freq_bias_percent`, `doze_active_freq_bias_percent`) is a writable module parameter — no rebuild needed to tune behavior.
+  - If a thermal hold was armed, the device's current temperature is rechecked **immediately** on wake — if it has already cooled below `thermal_threshold_mc - thermal_hysteresis_mc` (default 60 °C) while the screen was off, frequencies are released right away instead of waiting out a stale hold. Otherwise the screen-off bias is held for `thermal_hold_ms` (default 3 s) and rechecked each poll cycle until it cools down.
+  - If no thermal hold is active, CPU frequencies are restored to stock and a **Wake Boost** is triggered (see below).
+- **Wake Boost:** on every screen-on that isn't blocked by a thermal hold, a configurable frequency floor (`wake_boost_percent`, default 100%) is held for `wake_boost_ms` (default 1200 ms) via a dedicated workqueue, so the unlock animation and first app launch feel snappier before control hands back to the stock governor. If the screen turns off again before the window expires, the boost is cancelled cleanly instead of racing with the screen-off bias.
+- **Suspend-awareness:** a PM notifier tracks true suspend (`PM_SUSPEND_PREPARE`/`PM_POST_SUSPEND`) versus just screen-off-but-awake. During an actual suspend cycle the watcher now parks itself instead of touching cpuset/I-O-scheduler/cpufreq sysfs nodes mid-transition, and forces a full display-state resync right after resume so it never acts on stale state.
+- **Hotplug-safe QoS:** frequency QoS requests are kept in sync with live cpufreq policies via a policy notifier, so CPUs/clusters that come back online after being hotplugged off are picked back up automatically instead of being silently excluded from throttling until the next reboot.
+- **Runtime tunable:** every threshold above (`poll_interval_ms`, `boot_delay_ms`, `thermal_threshold_mc`, `thermal_hysteresis_mc`, `thermal_hold_ms`, `charging_freq_bias_percent`, `doze_active_freq_bias_percent`, `wake_boost_percent`, `wake_boost_ms`) is a writable module parameter — no rebuild needed to tune behavior.
 
 **Requirements:**
 
 Screen state detection needs one of:
-- DPMS: `/sys/class/drm/card0-DSI-1/dpms`
-- Backlight: `/sys/class/backlight/panel0-backlight/brightness`
+- DPMS: `/sys/class/drm/card0-DSI-1/dpms` (additional DPMS candidates can be added to the driver's candidate list)
+- Backlight, tried in order:
+  - `/sys/class/backlight/panel0-backlight/brightness`
+  - `/sys/class/leds/lcd-backlight/brightness`
+  - `/sys/class/backlight/panel0/brightness`
 
 Charging-aware behavior additionally looks for one of:
 - `/sys/class/power_supply/battery/status`
@@ -77,8 +83,6 @@ su -c 'ls /sys/module/momx/parameters/'
 su -c 'echo 60000 > /sys/module/momx/parameters/thermal_threshold_mc'
 ```
 
-Based on `https://github.com/LoggingNewMemory/SuiKernel-Release`'s Tenebrion logic and SELinux rules.
-
 ## Governor Reflex
 
 A schedutil-based governor extension that blends real idle-time CPU busy% (measured from kcpustat counters) with PELT utilization to get a faster-reacting "hispeed floor" without abandoning PELT's proportional scaling.
@@ -97,8 +101,33 @@ Frequency scaling itself is identical to stock schedutil, including the 1.25× D
 
 The effect is a governor that reacts instantly to a real load spike (via the idle-time-based hispeed reading) while smoothly handing off to PELT's steady-state behavior within a third of a second — avoiding both the lag of pure PELT and the overshoot of a naive instant-boost.
 
-Reflex Governor From `https://github.com/ramabondanp/android_kernel_common-5.10`
+Reflex Governor by Masahito Suzuki
 
+## Governor Vorpal
+
+**Vorpal v2.0 — Perfect Gaming & Thermal Edition**, a schedutil-derived governor built around switching cleanly between sustained gaming load and everyday power-efficient use, with per-cluster tuning on tri-cluster (Little/Big/Prime) SoCs.
+
+- **Dual-Profile Operating Modes** — a Gaming profile that locks into a high-frequency band for consistent frame timing, and a Daily profile tuned for power efficiency.
+- **Tri-Cluster Topology Awareness** — Little, Big, and Prime clusters are tuned independently rather than sharing one global policy.
+- **Directional EMA Util Smoothing** — an exponential moving average filter that rises fast on load spikes but decays slowly, avoiding frequency "yoyo-ing" between samples.
+- **Dynamic Capacity Headroom** — OPP headroom above the measured load scales with how loaded the CPU already is, rather than a fixed margin.
+- **Proactive Thermal Step Controller** — frequency caps ramp down in small ~2% steps and back up in ~1% steps, smoothing thermal response instead of hard-clamping.
+- **Thermal Zone Integration** — reads hardware thermal sensors with a userspace-fallback path if a zone is unavailable.
+- **Frame Pacing & Miss Recovery** — detects overruns against a 120fps budget and applies a bounded floor boost to recover pacing.
+- **Global Frame Boost** — a dropped-frame event synchronizes a boost across all clusters, not just the one that missed.
+- **Touch Input Responsiveness Boost** — lifts the frequency floor for a 220 ms window after touch input for immediate UI responsiveness.
+- **UI Ramp-Assist / Render Burst** — detects sharp utilization ramps typical of animations/scroll bursts and responds ahead of the normal control loop.
+- **Adaptive Floor (Idle/Busy)** — Prime and Little clusters switch between idle and busy frequency floors dynamically.
+- **Directional Rate Limiting** — separate up/down rate-limit gates per cluster instead of one shared rate limit.
+- **IOWait Performance Boost** — retains schedutil's legacy IOWait boost handling.
+- **Deadline Bandwidth Awareness** — SCHED_DEADLINE task bandwidth can bypass normal frequency selection when needed.
+- **Jank Telemetry & Statistics** — tracks and reports frame/jank ratios for tuning and debugging.
+- **Deferred IRQ-Work Frequency Commit** — an async path for platforms without fast-switch support.
+- **Global Policy State Reset** — cleanly resets all boost/state on leaving the Gaming profile.
+- **GKI 5.10 Util Interface** — uses `rfx_get_util_gki510` / `rfx_dl_bw_exceeded_gki510` for utilization and deadline-bandwidth queries on the GKI 5.10 ABI.
+- **Scheduler Coupling** — exposes `sched_gaming_active` so BORE/CFS scheduler biases can react to the active gaming profile.
+
+Vorpal Governor by Templar Dev (Steambot12).
 
 ## Memory Management
 
@@ -125,6 +154,7 @@ Reflex Governor From `https://github.com/ramabondanp/android_kernel_common-5.10`
 - MQ-Deadline
 - TCP FastOpen
 - Governor Reflex schedutil/PELT hispeed blend (see above)
+- Governor Vorpal gaming/thermal profile switching (see above)
 
 ## Other Features
 
@@ -133,9 +163,11 @@ Reflex Governor From `https://github.com/ramabondanp/android_kernel_common-5.10`
 
 ## Big Thanks
 
-https://github.com/LoggingNewMemory/SuiKernel-Release — Tenebrion logic and SELinux rules
+https://github.com/LoggingNewMemory — Tenebrion logic (Kanagawa Yamada) and SELinux rules
 
-https://github.com/ramabondanp/android_kernel_common-5.10 - Reflex Governor 
+Masahito Suzuki — Reflex Governor
+
+Templar Dev (Steambot12) — Vorpal Governor
 
 ## Recommended Tools
 
