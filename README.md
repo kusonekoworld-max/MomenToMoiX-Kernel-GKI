@@ -145,6 +145,8 @@ done
 # toggle gaming mode (replace policyN with the Prime cluster found above)
 su -c 'echo 1 > /sys/devices/system/cpu/cpufreq/policyN/vorpal/gaming_mode'   # gaming ON
 su -c 'echo 0 > /sys/devices/system/cpu/cpufreq/policyN/vorpal/gaming_mode'   # back to Daily profile
+```
+
 
 Vorpal Governor by Templar Dev (Steambot12).
 
