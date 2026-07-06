@@ -127,6 +127,25 @@ Reflex Governor by Masahito Suzuki
 - **GKI 5.10 Util Interface** — uses `rfx_get_util_gki510` / `rfx_dl_bw_exceeded_gki510` for utilization and deadline-bandwidth queries on the GKI 5.10 ABI.
 - **Scheduler Coupling** — exposes `sched_gaming_active` so BORE/CFS scheduler biases can react to the active gaming profile.
 
+**Usage:**
+
+Set the governor on the cluster(s) you want, then flip the gaming switch on the **Prime cluster only** — that's the cluster the governor auto-detects as highest-capacity, and it's the only one exposing the gaming/thermal/frame attributes.
+
+```bash
+# set governor on all clusters
+for p in /sys/devices/system/cpu/cpufreq/policy*/; do
+  echo vorpal > "${p}scaling_governor"
+done
+
+# find which policy is Prime — it's the one with the full attribute set
+for p in /sys/devices/system/cpu/cpufreq/policy*/vorpal/; do
+  ls "$p" | grep -q gaming_mode && echo "Prime cluster: $p"
+done
+
+# toggle gaming mode (replace policyN with the Prime cluster found above)
+su -c 'echo 1 > /sys/devices/system/cpu/cpufreq/policyN/vorpal/gaming_mode'   # gaming ON
+su -c 'echo 0 > /sys/devices/system/cpu/cpufreq/policyN/vorpal/gaming_mode'   # back to Daily profile
+
 Vorpal Governor by Templar Dev (Steambot12).
 
 ## Memory Management
