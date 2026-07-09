@@ -189,6 +189,8 @@ Vorpal Governor by Templar Dev (Steambot12).
 
 https://github.com/LoggingNewMemory — Tenebrion logic (Kanagawa Yamada) and SELinux rules
 
+KOWX712 — KOWSU (KernelSU fork)
+
 Masahito Suzuki — Reflex Governor
 
 Templar Dev (Steambot12) — Vorpal Governor
