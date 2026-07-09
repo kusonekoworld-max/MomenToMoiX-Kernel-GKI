@@ -10,8 +10,8 @@
 > Releases are named after Malice Mizer songs and appended to the kernel version string (e.g. `5.10.198-android14-MomenToMoiX-Gardenia`). Check the [Releases](../../releases) page for available builds, or run `uname -r` after flashing to confirm the exact build you're running.
 
 # Features
-- [KernelSU-Next](#kernelsu-next)
-- [SUSFS](#susfs)
+- [KOWSU](#kowsu)
+- [Bootloader State Spoof](#bootloader-state-spoof)
 - [MomenToMoiX Driver](#momentomoix-driver)
 - [Governor Reflex](#governor-reflex)
 - [Governor Vorpal](#governor-vorpal)
@@ -19,16 +19,19 @@
 - [Power Management](#power-management)
 - [Scheduler & I/O](#scheduler--io)
 
-## [KernelSU-Next](https://github.com/pershoot/KernelSU-Next)
+## KOWSU
 
-A kernel-based root solution for Android devices.
+A KernelSU fork used as the default root solution for this kernel.
+
+## Bootloader State Spoof
+
+The kernel reports a spoofed verified boot state at the kernel level rather than through userspace props alone.
+
+- `/proc/cmdline` and `/proc/bootconfig` are patched at read-time so `verifiedbootstate`, `device_state`, `flash.locked`, and `veritymode` are rewritten to `green` / `locked` / `1` / `enforcing` regardless of the device's actual unlock state.
+- This is applied at the kernel command-line parsing stage (`setup_command_line()`) and at the `/proc` read handlers (`cmdline_proc_show()`, `bootconfig_proc_show()`), so it's consistent across every consumer that reads boot state through these interfaces.
 
 > [!WARNING]
-> This release uses the [pershoot/KernelSU-Next](https://github.com/pershoot/KernelSU-Next) fork. The fork maintainer has said it is not ready for production use, so treat it as use at your own risk.
-
-## [SUSFS](https://gitlab.com/simonpunk/susfs4ksu)
-
-A KSU addon for hiding root using kernel patches and a userspace module.
+> This spoofs the reported boot/verity state and does not represent the device's actual security posture. Apps or services that rely on this reporting for security decisions (integrity checks, MDM, anti-fraud, etc.) will be misled. Use only if you understand the implications.
 
 ## MomenToMoiX Driver
 
@@ -213,8 +216,8 @@ b. KSU LKM (boot/init_boot/vendor_boot‑patched): Flash back the stock boot/ini
 c. KSU GKI: if you are 100% sure you already flashed stock init_boot/boot/vendor_boot, no action is needed; otherwise, follow the same steps as KSU LKM.
 d. APatch: remove /data/adb contents to avoid leftover root conflicts after flashing the AnyKernel3 ZIP.
 Flash the ZIP to the active slot using Kernel Flasher.
-Install the KernelSU‑Next Manager APK, same version as mentioned in the release notes.
-Open the KernelSU‑Next app.
+Install the KOWSU Manager APK, same version as mentioned in the release notes.
+Open the KOWSU app.
 Reboot the device if you performed any cleanup in step 2
 
 ---
