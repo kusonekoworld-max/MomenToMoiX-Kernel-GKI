@@ -10,18 +10,19 @@
 > Releases are named after Malice Mizer songs and appended to the kernel version string (e.g. `5.10.198-android14-MomenToMoiX-Gardenia`). Check the [Releases](../../releases) page for available builds, or run `uname -r` after flashing to confirm the exact build you're running.
 
 # Features
-- [KOWSU](#kowsu)
+- [KernelSU-Next + SUSFS](#kernelsu-next--susfs)
 - [Bootloader State Spoof](#bootloader-state-spoof)
 - [MomenToMoiX Driver](#momentomoix-driver)
 - [Governor Reflex](#governor-reflex)
 - [Governor Vorpal](#governor-vorpal)
+- [Governor Bara-no-Seidou](#governor-bara-no-seidou)
 - [Memory Management](#memory-management)
 - [Power Management](#power-management)
 - [Scheduler & I/O](#scheduler--io)
 
-## KOWSU
+## KernelSU-Next + SUSFS
 
-A KernelSU fork used as the default root solution for this kernel.
+KernelSU-Next paired with SUSFS is the default root solution for this kernel, providing systemless root alongside filesystem-level su hiding for stronger detection resistance than KernelSU-Next alone.
 
 ## Bootloader State Spoof
 
@@ -150,8 +151,42 @@ su -c 'echo 1 > /sys/devices/system/cpu/cpufreq/policyN/vorpal/gaming_mode'   # 
 su -c 'echo 0 > /sys/devices/system/cpu/cpufreq/policyN/vorpal/gaming_mode'   # back to Daily profile
 ```
 
-
 Vorpal Governor by Templar Dev (Steambot12).
+
+## Governor Bara-no-Seidou
+
+A schedutil-derived governor built in-house for this kernel, tuned specifically for dual-cluster (Little/Big) SM6225-class SoCs. Named after Malice Mizer's *Bara no Seidou*.
+
+- **Headroom, Not Discount** — instead of shaving measured utilization down before mapping it to a frequency, capacity is padded with margin so the resolved OPP has slack. The margin is tiered by load (negligible at low utilization for battery, more as utilization climbs for responsiveness) and per-cluster (Little gets more headroom than Big).
+- **Dual-Profile Gaming/Daily Switch** — reads the same `sched_gaming_active` flag Vorpal exposes, so both governors' scheduler-side biases stay in lockstep regardless of which one is the active cpufreq governor.
+- **Instant Up, Rate-Limited Down (Gaming)** — zero delay on upward frequency changes while gaming; downward changes stay rate-limited to avoid yoyo-ing.
+- **Gaming Exit Hysteresis** — a short grace window after gaming mode drops keeps the gaming profile active, so a loading screen or brief app-switch doesn't flip profiles mid-session.
+- **Directional EMA Util Smoothing** — rises instantly on load spikes, decays slowly, avoiding frequency oscillation between samples.
+- **Touch-Boost Input Responsiveness** — a dedicated input handler suspends the daily headroom curve for a tunable window after any touch event.
+- **UI Ramp-Assist** — a sharp rise in utilization percentage (not just a touch event) re-arms the same responsiveness window, catching fling-scrolls and animations that a touch-only boost would miss.
+- **Per-Cluster Daily Shaping** — the Little cluster is capped during idle-ish background work and released during active UI; both clusters get a frequency floor while UI is active.
+- **Hold-Freq Across Idle Blips** — frequency is never dropped based on a utilization sample taken right after a brief, non-representative idle blip.
+- **Decaying IOWait Boost** — doubles on sustained IOWait, halves once it stops, instead of snapping on/off every tick.
+- **Thermal Step Controller** — the applied thermal cap steps down quickly on rising pressure and recovers gradually, avoiding oscillation right at the thermal trip point.
+- **PSI-Aware Floor & Cap (opt-in)** — reads system-wide Pressure Stall Information as a 10-second-smoothed signal: sustained CPU pressure can raise a frequency floor, sustained memory pressure can lower a cap, catching sustained scheduling/paging stalls that per-tick utilization never sees. Off by default.
+- **Screen-Resume State Reset** — hysteresis and decay state left over from before a suspend is cleared on the screen-off → screen-on edge, so a long suspend can't bias the first post-resume decision window.
+- **cpufreq_this_cpu_can_update Safety Gate** — guards against a CPU that isn't entitled to drive a shared policy (relevant on multi-CPU Little clusters) from acting on it.
+- **Fast-Switch Aware** — explicitly enables cpufreq fast-switch where the driver supports it, only falling back to a dedicated SCHED_DEADLINE kthread where it doesn't.
+- **Fully Runtime-Tunable** — every threshold above is a writable sysfs attribute under `/sys/devices/system/cpu/cpufreq/policyX/bara-no-seidou/`, no rebuild needed to tune behavior.
+
+**Usage:**
+
+```bash
+# set governor on a cluster
+echo bara-no-seidou > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
+echo bara-no-seidou > /sys/devices/system/cpu/cpufreq/policy4/scaling_governor
+
+# toggle gaming mode (shared with Vorpal's sched_gaming_active)
+su -c 'echo 1 > /sys/devices/system/cpu/cpufreq/policy4/bara-no-seidou/gaming_mode'   # gaming ON
+su -c 'echo 0 > /sys/devices/system/cpu/cpufreq/policy4/bara-no-seidou/gaming_mode'   # back to Daily profile
+```
+
+Bara-no-Seidou Governor by kusonekoworld.
 
 ## Memory Management
 
@@ -176,9 +211,11 @@ Vorpal Governor by Templar Dev (Steambot12).
 - Full Preemption (CONFIG_PREEMPT)
 - BFQ I/O Scheduler (with Group IOSCHED)
 - MQ-Deadline
+- BBG
 - TCP FastOpen
 - Governor Reflex schedutil/PELT hispeed blend (see above)
 - Governor Vorpal gaming/thermal profile switching (see above)
+- Governor Bara-no-Seidou headroom/PSI-aware profile switching (see above)
 
 ## Other Features
 
@@ -189,7 +226,7 @@ Vorpal Governor by Templar Dev (Steambot12).
 
 https://github.com/LoggingNewMemory — Tenebrion logic (Kanagawa Yamada) and SELinux rules
 
-KOWX712 — KOWSU (KernelSU fork)
+KernelSU-Next & SUSFS teams — root solution and filesystem-level su hiding
 
 Masahito Suzuki — Reflex Governor
 
@@ -218,8 +255,8 @@ b. KSU LKM (boot/init_boot/vendor_boot‑patched): Flash back the stock boot/ini
 c. KSU GKI: if you are 100% sure you already flashed stock init_boot/boot/vendor_boot, no action is needed; otherwise, follow the same steps as KSU LKM.
 d. APatch: remove /data/adb contents to avoid leftover root conflicts after flashing the AnyKernel3 ZIP.
 Flash the ZIP to the active slot using Kernel Flasher.
-Install the KOWSU Manager APK, same version as mentioned in the release notes.
-Open the KOWSU app.
+Install the KernelSU-Next Manager APK, same version as mentioned in the release notes.
+Open the KernelSU-Next app.
 Reboot the device if you performed any cleanup in step 2
 
 ---
