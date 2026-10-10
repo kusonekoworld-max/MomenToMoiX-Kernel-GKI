@@ -243,8 +243,8 @@ b. KSU LKM (boot/init_boot/vendor_boot‑patched): Flash back the stock boot/ini
 c. KSU GKI: if you are 100% sure you already flashed stock init_boot/boot/vendor_boot, no action is needed; otherwise, follow the same steps as KSU LKM.
 d. APatch: remove /data/adb contents to avoid leftover root conflicts after flashing the AnyKernel3 ZIP.
 Flash the ZIP to the active slot using Kernel Flasher.
-Install the KernelSU-Next Manager APK, same version as mentioned in the release notes.
-Open the KernelSU-Next app.
+Install the KOWSU Manager APK, same version as mentioned in the release notes.
+Open the KOWSU app.
 Reboot the device if you performed any cleanup in step 2
 
 ---
