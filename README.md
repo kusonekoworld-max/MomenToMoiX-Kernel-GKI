@@ -10,7 +10,7 @@
 > Releases are named after Malice Mizer/Moi Dix Mois songs and appended to the kernel version string (e.g. `5.10.198-android14-MomenToMoiX-Gardenia`). Check the [Releases](../../releases) page for available builds, or run `uname -r` after flashing to confirm the exact build you're running.
 
 # Features
-- [KernelSU-Next + SUSFS](#kernelsu-next--susfs)
+- [KOWSU](#KOWSU)
 - [Bootloader State Spoof](#bootloader-state-spoof)
 - [MomenToMoiX Driver](#momentomoix-driver)
 - [Governor Reflex](#governor-reflex)
