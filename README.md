@@ -7,7 +7,7 @@
 
 **By:** @koneko_dev [t.me/Koneko_dev](https://t.me/Koneko_dev)
 
-> Releases are named after Malice Mizer songs and appended to the kernel version string (e.g. `5.10.198-android14-MomenToMoiX-Gardenia`). Check the [Releases](../../releases) page for available builds, or run `uname -r` after flashing to confirm the exact build you're running.
+> Releases are named after Malice Mizer/Moi Dix Mois songs and appended to the kernel version string (e.g. `5.10.198-android14-MomenToMoiX-Gardenia`). Check the [Releases](../../releases) page for available builds, or run `uname -r` after flashing to confirm the exact build you're running.
 
 # Features
 - [KernelSU-Next + SUSFS](#kernelsu-next--susfs)
@@ -20,19 +20,8 @@
 - [Power Management](#power-management)
 - [Scheduler & I/O](#scheduler--io)
 
-## KernelSU-Next + SUSFS
-
-KernelSU-Next paired with SUSFS is the default root solution for this kernel, providing systemless root alongside filesystem-level su hiding for stronger detection resistance than KernelSU-Next alone.
-
-## Bootloader State Spoof
-
-The kernel reports a spoofed verified boot state at the kernel level rather than through userspace props alone.
-
-- `/proc/cmdline` and `/proc/bootconfig` are patched at read-time so `verifiedbootstate`, `device_state`, `flash.locked`, and `veritymode` are rewritten to `green` / `locked` / `1` / `enforcing` regardless of the device's actual unlock state.
-- This is applied at the kernel command-line parsing stage (`setup_command_line()`) and at the `/proc` read handlers (`cmdline_proc_show()`, `bootconfig_proc_show()`), so it's consistent across every consumer that reads boot state through these interfaces.
-
-> [!WARNING]
-> This spoofs the reported boot/verity state and does not represent the device's actual security posture. Apps or services that rely on this reporting for security decisions (integrity checks, MDM, anti-fraud, etc.) will be misled. Use only if you understand the implications.
+#KOWSU
+Kowsu as default kernel root manager
 
 ## MomenToMoiX Driver
 
