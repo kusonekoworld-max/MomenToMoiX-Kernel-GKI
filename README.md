@@ -20,7 +20,8 @@
 - [Power Management](#power-management)
 - [Scheduler & I/O](#scheduler--io)
 
-#KOWSU
+## KOWSU
+
 Kowsu as default kernel root manager
 
 ## MomenToMoiX Driver
@@ -214,8 +215,6 @@ Bara-no-Seidou Governor by kusonekoworld.
 ## Big Thanks
 
 https://github.com/LoggingNewMemory — Tenebrion logic (Kanagawa Yamada) and SELinux rules
-
-KernelSU-Next & SUSFS teams — root solution and filesystem-level su hiding
 
 Masahito Suzuki — Reflex Governor
 
